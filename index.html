@@ -1,3 +1,6 @@
+---
+---
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +9,7 @@
     <title>Zion Church Planner (INDY)</title>
     
     <!-- PWA Meta Tags & Manifest -->
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="/manifest.json">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -17,7 +20,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
         body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
-        .pin-digit:focus { border-color: #312e81; ring: 2px; }
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
             20%, 60% { transform: translateX(-8px); }
@@ -57,13 +59,9 @@
                 <p class="text-xs text-slate-500 mt-1">Enter PIN or open Short Term extension</p>
             </div>
 
-            <div id="pin-input-container" class="flex justify-center space-x-3">
-                <input type="text" maxlength="1" pattern="\d*" inputmode="numeric" class="pin-digit w-12 h-14 border-2 border-slate-200 rounded-xl text-center text-2xl font-bold text-indigo-950 focus:border-indigo-800 outline-none transition-all shadow-sm" oninput="handlePinInput(this, 0)" onkeydown="handlePinBackspace(event, 0)">
-                <input type="text" maxlength="1" pattern="\d*" inputmode="numeric" class="pin-digit w-12 h-14 border-2 border-slate-200 rounded-xl text-center text-2xl font-bold text-indigo-950 focus:border-indigo-800 outline-none transition-all shadow-sm" oninput="handlePinInput(this, 1)" onkeydown="handlePinBackspace(event, 1)">
-                <input type="text" maxlength="1" pattern="\d*" inputmode="numeric" class="pin-digit w-12 h-14 border-2 border-slate-200 rounded-xl text-center text-2xl font-bold text-indigo-950 focus:border-indigo-800 outline-none transition-all shadow-sm" oninput="handlePinInput(this, 2)" onkeydown="handlePinBackspace(event, 2)">
-                <input type="text" maxlength="1" pattern="\d*" inputmode="numeric" class="pin-digit w-12 h-14 border-2 border-slate-200 rounded-xl text-center text-2xl font-bold text-indigo-950 focus:border-indigo-800 outline-none transition-all shadow-sm" oninput="handlePinInput(this, 3)" onkeydown="handlePinBackspace(event, 3)">
+            <div id="pin-input-container" class="flex justify-center">
+                <input type="text" id="single-pin-input" maxlength="4" pattern="\d*" inputmode="numeric" placeholder="••••" class="w-48 h-14 border-2 border-slate-200 rounded-xl text-center text-3xl font-bold tracking-widest text-indigo-950 focus:border-indigo-800 outline-none transition-all shadow-sm" oninput="handleSinglePinInput(this)">
             </div>
-            
 
             <p id="pin-error-msg" class="text-xs font-semibold text-rose-600 hidden">Incorrect PIN. Please try again.</p>
 
@@ -580,6 +578,19 @@
         <img id="lightboxImg" src="" alt="Full view preview" class="max-w-[90vw] max-h-[85vh] object-contain rounded-xl border border-slate-700 shadow-2xl" />
     </div>
 
+    <!-- PASSWORD PROMPT MODAL -->
+    <div id="password-prompt-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[130] flex items-center justify-center hidden p-4">
+        <div class="bg-white w-full max-w-xs rounded-2xl shadow-2xl p-6 text-center space-y-4 border border-indigo-900/20">
+            <div class="text-3xl">🔐</div>
+            <h3 class="font-bold text-indigo-950 text-base">Enter Admin Password</h3>
+            <input type="password" id="admin-password-input" placeholder="Password..." class="w-full border border-slate-300 rounded-xl p-2.5 text-center text-sm outline-none focus:ring-2 focus:ring-indigo-500 font-semibold">
+            <div class="flex gap-2 pt-1">
+                <button type="button" onclick="closePasswordModal()" class="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs">Cancel</button>
+                <button type="button" onclick="verifyAdminPassword()" class="w-1/2 bg-indigo-900 hover:bg-indigo-800 text-white font-bold py-2.5 rounded-xl text-xs shadow-md">Submit</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ADMIN MODAL -->
     <div id="admin-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white w-full max-w-3xl rounded-2xl shadow-xl max-h-[90vh] flex flex-col">
@@ -851,19 +862,13 @@
     </div>
 
     <!-- JAVASCRIPT LOGIC ENGINE -->
-    <script>
+    <script is:inline>
         const APP_ACCESS_PIN = "1948";
         const MASTER_ADMIN_PASSWORD = "Grace2026";
         const LIMITED_ADMIN_PASSWORD = "Team2026";
         
         const CLOUD_URL = "https://clever-python-151784.upstash.io";
         const CLOUD_TOKEN = "gQAAAAAAAlDoAAIgcDEyNjI1YTg0MGFiNDM0NzIzYWRjYTliZThmOTA3ZWViMA";
-
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').catch(() => {});
-            });
-        }
 
         let deferredPrompt = null;
         window.addEventListener('beforeinstallprompt', (e) => {
@@ -1147,16 +1152,28 @@
                 toggleAdminModal();
                 return;
             }
+            document.getElementById('admin-password-input').value = '';
+            document.getElementById('password-prompt-modal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('admin-password-input').focus(), 100);
+        }
 
-            const attempt = prompt("Please enter the Admin Password:");
+        function closePasswordModal() {
+            document.getElementById('password-prompt-modal').classList.add('hidden');
+        }
+
+        function verifyAdminPassword() {
+            const attempt = document.getElementById('admin-password-input').value;
             if (attempt === MASTER_ADMIN_PASSWORD) {
                 setAdminActive('master');
+                closePasswordModal();
                 toggleAdminModal();
             } else if (attempt === LIMITED_ADMIN_PASSWORD) {
                 setAdminActive('limited');
+                closePasswordModal();
                 toggleAdminModal();
-            } else if (attempt !== null) {
+            } else {
                 alert("Incorrect password. Access denied.");
+                document.getElementById('admin-password-input').value = '';
             }
         }
 
@@ -1165,23 +1182,16 @@
             document.getElementById('hamburger-drawer').classList.toggle('hidden');
         }
 
-        function handlePinInput(input, index) {
+        function handleSinglePinInput(input) {
             document.getElementById('pin-error-msg').classList.add('hidden');
-            if (input.value.length === 1 && index < 3) {
-                document.querySelectorAll('.pin-digit')[index + 1].focus();
-            }
-            let code = Array.from(document.querySelectorAll('.pin-digit')).map(i => i.value).join('');
-            if (code.length === 4) submitPinCheck();
-        }
-
-        function handlePinBackspace(e, index) {
-            if (e.key === 'Backspace' && index > 0 && !e.target.value) {
-                document.querySelectorAll('.pin-digit')[index - 1].focus();
+            let code = input.value.replace(/\D/g, '').slice(0, 4);
+            input.value = code;
+            if (code.length === 4) {
+                submitDirectPin(code);
             }
         }
 
-        async function submitPinCheck() {
-            let enteredPin = Array.from(document.querySelectorAll('.pin-digit')).map(i => i.value).join('');
+        async function submitDirectPin(enteredPin) {
             if (enteredPin === APP_ACCESS_PIN) {
                 sessionStorage.setItem('planner_unlocked', 'true');
                 sessionStorage.removeItem('guest_short_term');
@@ -1200,10 +1210,14 @@
             } else {
                 document.getElementById('pin-error-msg').classList.remove('hidden');
                 document.getElementById('pin-input-container').classList.add('animate-shake');
-                document.querySelectorAll('.pin-digit').forEach(i => i.value = '');
-                document.querySelectorAll('.pin-digit')[0].focus();
+                document.getElementById('single-pin-input').value = '';
                 setTimeout(() => document.getElementById('pin-input-container').classList.remove('animate-shake'), 400);
             }
+        }
+
+        async function submitPinCheck() {
+            let enteredPin = document.getElementById('single-pin-input').value;
+            submitDirectPin(enteredPin);
         }
 
         async function openShortTermGuestPortal() {
@@ -1254,8 +1268,8 @@
             isShortTermGuestMode = false;
             document.getElementById('app-wrapper').classList.add('hidden');
             document.getElementById('pin-login-screen').classList.remove('hidden');
-            document.querySelectorAll('.pin-digit').forEach(i => i.value = '');
-            document.querySelectorAll('.pin-digit')[0].focus();
+            document.getElementById('single-pin-input').value = '';
+            document.getElementById('single-pin-input').focus();
         }
 
         async function checkPinSession() {
@@ -1268,7 +1282,7 @@
                 checkExistingAdminSession();
                 if (isGuest) switchTab('shortterm');
             } else {
-                document.querySelectorAll('.pin-digit')[0]?.focus();
+                document.getElementById('single-pin-input')?.focus();
             }
         }
 
@@ -2728,7 +2742,6 @@
                         const role = parts[0];
                         const name = parts[1];
                         parsedDuties.push(`${name || 'Unassigned'} : ${role}`);
-                        updatedCount++;
                     }
                 });
 
@@ -3205,5 +3218,3 @@
     </script>
 </body>
 </html>
-
-
